@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lite Bet Simulator</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #1a1a1a; color: #fff; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1 { text-align: center; color: #00ffcc; }
+        .card { background-color: #2a2a2a; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .balance-box { display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #00ffcc; }
+        .balance-amount { font-size: 24px; font-weight: bold; color: #00ffcc; }
+        .match-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; }
+        .odds-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .odds-btn { background-color: #3a3a3a; border: 2px solid #555; border-radius: 8px; color: white; padding: 12px; font-size: 16px; cursor: pointer; transition: all 0.2s; }
+        .odds-btn:hover { background-color: #4a4a4a; border-color: #00ffcc; }
+        .odds-btn.selected { background-color: #00ffcc; color: #1a1a1a; font-weight: bold; border-color: #00ffcc; }
+        .stake-row { display: flex; gap: 10px; margin-top: 15px; }
+        input[type="number"] { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #555; background-color: #333; color: white; font-size: 16px; }
+        .bet-btn { background-color: #ffcc00; color: #1a1a1a; font-weight: bold; border: none; border-radius: 8px; padding: 12px 24px; font-size: 16px; cursor: pointer; width: 100%; transition: background 0.2s; }
+        .bet-btn:hover { background-color: #e6b800; }
+        .status-msg { margin-top: 15px; padding: 10px; border-radius: 6px; display: none; text-align: center; font-weight: bold; }
+        .success { background-color: rgba(0, 255, 204, 0.2); color: #00ffcc; }
+        .error { background-color: rgba(255, 51, 51, 0.2); color: #ff3333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏆 LITE BET SIMULATOR</h1>
+        
+        <div class="card balance-box">
+            <span>Your Available Balance:</span>
+            <span class="balance-amount" id="wallet-balance">Ksh --</span>
+        </div>
+
+        <div class="card">
+            <div class="match-title" id="match-teams">Loading Live Match...</div>
+            <div class="odds-row">
+                <button class="odds-btn" onclick="selectMarket('home')" id="btn-home">Home<br><span id="odds-home">--</span></button>
+                <button class="odds-btn" onclick="selectMarket('draw')" id="btn-draw">Draw<br><span id="odds-draw">--</span></button>
+                <button class="odds-btn" onclick="selectMarket('away')" id="btn-away">Away<br><span id="odds-away">--</span></button>
+            </div>
+            
+            <div class="stake-row">
+                <input type="number" id="stake-amount" placeholder="Enter Stake Amount (e.g. 500)">
+            </div>
+            <br>
+            <button class="bet-btn" onclick="submitBet()">PLACE SLIP TICKET</button>
+            <div id="status-box" class="status-msg"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedSelection = null;
+        const API_URL = 'http://127.0.0.1:8000';
+
+        async function loadDashboard() {
+            try {
+                const userRes = await fetch(`${API_URL}/user/user_001`);
+                const userData = await userRes.json();
+                document.getElementById('wallet-balance').innerText = `Ksh ${userData.wallet_balance.toFixed(2)}`;
+
+                const matchRes = await fetch(`${API_URL}/matches`);
+                const matchData = await matchRes.json();
+                const match = matchData.matches.match_101;
+
+                document.getElementById('match-teams').innerText = match.teams;
+                document.getElementById('odds-home').innerText = match.odds.home;
+                document.getElementById('odds-draw').innerText = match.odds.draw;
+                document.getElementById('odds-away').innerText = match.odds.away;
+            } catch (err) {
+                console.error("Dashboard connection failed", err);
+            }
+        }
+
+        function selectMarket(selection) {
+            selectedSelection = selection;
+            document.querySelectorAll('.odds-btn').forEach(btn => btn.classList.remove('selected'));
+            document.getElementById(`btn-${selection}`).classList.add('selected');
+        }
+
+        async function submitBet() {
+            const stakeInput = document.getElementById('stake-amount').value;
+            if (!selectedSelection || !stakeInput || stakeInput <= 0) {
+                alert("Please select odds and enter a stake!");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/bet/place`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: "user_001",
+                        match_id: "match_101",
+                        selection: selectedSelection,
+                        stake: parseFloat(stakeInput)
+                    })
+                });
+
+                const data = await response.json();
+                const statusBox = document.getElementById('status-box');
+                statusBox.style.display = 'block';
+                
+                if (response.ok) {
+                    statusBox.innerText = `Success! Remaining: Ksh ${data.remaining_balance}`;
+                    statusBox.className = "status-msg success";
+                    loadDashboard();
+                } else {
+                    statusBox.innerText = data.detail;
+                    statusBox.className = "status-msg error";
+                }
+            } catch (err) {
+                alert("Cannot connect to server backend.");
+            }
+        }
+        loadDashboard();
+    </script>
+</body>
+</html>
